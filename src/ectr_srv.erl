@@ -29,7 +29,7 @@
          handle_info/2, terminate/2, code_change/3]).
 
 %% API functions
--export([incr/1, incr/2]).
+-export([incr/2, incr/3]).
 
 %% Admin functions
 -export([report/1]).
@@ -62,16 +62,16 @@ start_link(Name, ReportFn, Interval)
        is_integer(Interval), Interval > 0 ->
     gen_server:start_link({local, Name}, ?MODULE, [Name], []).
 
-incr(Key) ->
-    incr(Key, 1).
+incr(Name, Key) ->
+    incr(Name, Key, 1).
 
--spec incr(counter_key()) -> any().
-incr(Key, Incr) when is_integer(Incr) ->
-    try ets:update_counter(?MODULE, Key, Incr)
+-spec incr(Name::atom(), counter_key()) -> any().
+incr(Name, Key, Incr) when is_integer(Incr) ->
+    try ets:update_counter(Name, Key, Incr)
     catch error:badarg -> % Usually this is because the key doesn't exist.
-            try ets:insert_new(?MODULE, {Key, Incr})
+            try ets:insert_new(Name, {Key, Incr})
             catch error:badarg -> % We lost the key creation race, just update.
-                    catch ets:update_counter(?MODULE, Key, Incr)
+                    catch ets:update_counter(Name, Key, Incr)
             end
     end.
 
@@ -117,9 +117,9 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 %% @todo Move reporting to child process.
-run_report(State = #state{}) ->
+run_report(State = #state{name = Name}) ->
     TS = os:timestamp(),
-    Stats = ets:tab2list(logplex_stats),
+    Stats = ets:tab2list(Name),
     try report(TS, Stats, State) of
         S -> S
     catch
