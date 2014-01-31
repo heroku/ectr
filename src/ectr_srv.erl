@@ -60,7 +60,8 @@ start_link(Name, ReportFn, Interval)
   when is_atom(Name),
        is_function(ReportFn, 2) orelse tuple_size(ReportFn) =:= 2,
        is_integer(Interval), Interval > 0 ->
-    gen_server:start_link({local, Name}, ?MODULE, [Name], []).
+    gen_server:start_link({local, Name}, ?MODULE,
+                          [Name, ReportFn, Interval], []).
 
 incr(Name, Key) ->
     incr(Name, Key, 1).
