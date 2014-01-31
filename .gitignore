@@ -1,0 +1,10 @@
+*~
+*.beam
+.gitignore
+ebin/*.app
+c_src/*.o
+.eunit/*
+.#*
+deps/*
+.rebarinfo
+.edts*
