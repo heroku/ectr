@@ -122,7 +122,7 @@ run_report(State = #state{name = Name}) ->
     TS = os:timestamp(),
     Stats = ets:tab2list(Name),
     try report(TS, Stats, State) of
-        S -> S
+        _ -> State
     catch
         C:E ->
             ?WARN("at=report class=~p error=~p stack=~1000P",
