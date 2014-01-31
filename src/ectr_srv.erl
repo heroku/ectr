@@ -101,7 +101,7 @@ handle_cast(_Msg, State) ->
 
 handle_info({timeout, TRef, ?REPORT_MSG},
             State = #state{tref = TRef}) ->
-    NewState = run_report(State),
+    NewState = run_report(State#state{tref=undefined}),
     {noreply, set_timer(NewState)};
 
 handle_info(_Info, State) ->
