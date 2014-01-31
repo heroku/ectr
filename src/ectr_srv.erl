@@ -153,7 +153,8 @@ report(TS, Stats, #state{name = Name,
           report_stat(Fn, TS, Stat),
           clear(Name, Stat)
       end
-      || Stat <- Stats ],
+      || Stat = {_Key, Count} <- Stats,
+         Count > 0], % Don't report 0 stats - no new sightings.
     ok.
 
 report_stat(Fn, Ts, Stat) when is_function(Fn, 2) ->
