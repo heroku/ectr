@@ -36,22 +36,11 @@
 
 -include("ectr_log.hrl").
 
--type counter_key() :: term().
-
--type stat() :: {Key::term(), Counter::non_neg_integer()}.
--type report_fn() :: fun ((erlang:timestamp(), stat()) -> any()) |
-                     {Module::atom(), Fun::atom()}.
-
--record(state, {name ::atom(),
-                report_fn :: report_fn(),
+-record(state, {name :: atom(),
+                report_fn :: ectr:report_fn(),
                 interval = timer:seconds(1) :: pos_integer(),
                 tref :: reference()
                }).
-
--export_types([stat/0
-              ,report_fn/0
-              ,counter_key/0
-              ]).
 
 -define(REPORT_MSG, report).
 
@@ -66,12 +55,16 @@ start_link(Name, ReportFn, Interval)
 incr(Name, Key) ->
     incr(Name, Key, 1).
 
--spec incr(Name::atom(), counter_key()) -> any().
-incr(Name, Key, Incr) when is_integer(Incr) ->
+incr(Name, Key, Incr)
+  when is_atom(Name), is_integer(Incr) ->
     try ets:update_counter(Name, Key, Incr)
     catch error:badarg -> % Usually this is because the key doesn't exist.
             try ets:insert_new(Name, {Key, Incr})
             catch error:badarg -> % We lost the key creation race, just update.
+                    %% Here, the catch allows us to avoid crashing if
+                    %% the table really doesn't exist. This means the
+                    %% table owning process can be restarted and
+                    %% callers will be able to make progress.
                     catch ets:update_counter(Name, Key, Incr)
             end
     end.
