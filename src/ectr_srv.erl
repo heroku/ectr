@@ -29,29 +29,35 @@
          handle_info/2, terminate/2, code_change/3]).
 
 %% API functions
--export([start_link/3]).
+-export([start_link/4]).
 
 %% Admin functions
 -export([report/1]).
 
 -include("ectr_log.hrl").
 
+-record(report, {pid :: pid(),
+                 started_at = os:timestamp() :: erlang:timestamp()}).
+
 -record(state, {name :: atom(),
-                report_fn :: ectr:report_fn(),
+                report :: ectr_report:report(),
                 interval = timer:seconds(1) :: pos_integer(),
                 tref :: reference(),
-                gc_tid :: ets:tab()
+                gc :: ectr_gc:gc(),
+                report_job :: #report{} | 'undefined'
                }).
 
 -define(REPORT_MSG, report).
 
 %% API functions
-start_link(Name, ReportFn, Interval)
+-spec start_link(Name::atom(), Report::ectr_report:report(),
+                 Interval::pos_integer(), GC::ectr_gc:gc()) ->
+                        {ok, pid()} | {error, any()} | ignore.
+start_link(Name, Report, Interval, GC)
   when is_atom(Name),
-       is_function(ReportFn, 2) orelse tuple_size(ReportFn) =:= 2,
        is_integer(Interval), Interval > 0 ->
     gen_server:start_link({local, Name}, ?MODULE,
-                          [Name, ReportFn, Interval], []).
+                          [Name, Report, Interval, GC], []).
 
 report(Name) ->
     gen_server:call(Name, report, timer:seconds(30)).
@@ -60,17 +66,20 @@ report(Name) ->
 %% gen_server callbacks
 %%====================================================================
 
-init([Name, ReportFn, Interval]) ->
+init([Name, Report, Interval, GC]) ->
     _Tid = init_table(Name),
     State = #state{name = Name,
-                   report_fn = ReportFn,
+                   report = Report,
                    interval = Interval,
-                   gc_tid = ectr_gc:init_table(Name)},
+                   gc = ectr_gc:init_table(GC)},
     {ok, set_timer(State)}.
 
-handle_call(report, _From, State) ->
-    run_report(cancel_timer(State)),
-    {reply, ok, set_timer(State)};
+handle_call(report, _From, State = #state{report_job = R = #report{}}) ->
+    {reply, {report_running, R}, State};
+
+handle_call(report, _From, State = #state{report_job = undefined}) ->
+    NewState = run_report(cancel_timer(State)),
+    {reply, ok, set_timer(NewState)};
 
 handle_call(_Msg, _From, State) ->
     {reply, {error, invalid_call}, State}.
@@ -78,10 +87,43 @@ handle_call(_Msg, _From, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
+%% Report timer fires with report still running:
 handle_info({timeout, TRef, ?REPORT_MSG},
-            State = #state{tref = TRef}) ->
-    run_report(State#state{tref=undefined}),
-    {noreply, set_timer(State)};
+            State = #state{tref = TRef,
+                           report_job = #report{started_at=TS}}) ->
+    ?WARN("at=report_timer reporting_skew error=report_still_running "
+          "started_at=~p elapsed=~pus",
+          [unix_ts(TS), timer:now_diff(TS, os:timestamp())]),
+    {noreply, set_timer(State#state{tref=undefined})};
+
+%% Report timer fired - time to kick off a report.
+handle_info({timeout, TRef, ?REPORT_MSG},
+            State = #state{tref = TRef,
+                           report_job = undefined}) ->
+    NewState = run_report(State#state{tref=undefined}),
+    {noreply, set_timer(NewState)};
+
+handle_info({'EXIT', Pid, Reason},
+            State = #state{interval = IntervalMS,
+                           report_job = #report{pid = Pid,
+                                                started_at = Start}}) ->
+    Elapsed = timer:now_diff(Start, os:timestamp()),
+    IntervalUS = IntervalMS * 1000,
+    case Reason of
+        normal when Elapsed =< IntervalUS ->
+            ?INFO("at=report_completion result=success "
+                  "elapsed=~p started_at=~p",
+                  [Elapsed, unix_ts(Start)]);
+        normal ->
+            ?WARN("at=report_completion result=success "
+                  "elapsed=~p error=report_ran_too_slowly started_at=~p",
+                  [Elapsed, unix_ts(Start)]);
+        Else ->
+            ?WARN("at=report_completion result=error "
+                  "error=~p elapsed=~p started_at=~p",
+                  [Else, Elapsed, unix_ts(Start)])
+    end,
+    {noreply, State#state{report_job = undefined}};
 
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -102,22 +144,19 @@ init_table(Name) ->
                    {read_concurrency, true}]).
 
 %% @todo Move reporting to child process.
-run_report(#state{name = Name,
-                  report_fn = Fn,
-                  gc_tid = GCTid}) ->
+run_report(State = #state{name = Tab,
+                          report = Report,
+                          gc = GC,
+                          report_job = undefined }) ->
     TS = os:timestamp(),
-    ?INFO("at=report_begin name=~p", [Name]),
-    try ectr_report:by_snapshot(TS, Name, Fn, GCTid) of
-        _ -> ok
-    catch
-        C:E ->
-            ?WARN("at=report_failed class=~p error=~p stack=~1000P",
-                  [C, E, erlang:get_stacktrace()]),
-            ok
-    end,
-    ?INFO("at=report_end name=~p elapsed=~p",
-          [Name, timer:now_diff(TS, os:timestamp())]),
-    ok.
+    case ectr_report:start_link(Report, TS, Tab, GC) of
+        {ok, Pid} ->
+            State#state{report_job = #report{pid = Pid,
+                                             started_at = TS} };
+        Else ->
+            ?WARN("at=report_failure reason=~p", [Else]),
+            State
+    end.
 
 set_timer(State = #state{tref=undefined,
                          interval = MS}) ->
@@ -135,3 +174,6 @@ cancel_timer(State = #state{tref=TRef}) when is_reference(TRef) ->
          _Time -> ok
     end,
     State#state{tref = undefined}.
+
+unix_ts({Mega, S, _Micros}) ->
+    Mega * 1000000 + S.
