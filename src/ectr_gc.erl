@@ -5,52 +5,72 @@
 %% @end
 -module(ectr_gc).
 
--export([init_table/1
+-export([new/2
+         ,init_table/1
          ,delete_table/1
          ,mark/2
          ,unmark/2
-         ,sweep/2
+         ,sweep/1
         ]).
 
--spec init_table(atom()) -> ets:tab().
+-export([ets_tab/1]).
+
+-include_lib("stdlib/include/ms_transform.hrl").
+
+-record(gc, {name :: atom(),
+             mark_threshold :: pos_integer(),
+             tab :: ets:tab()}).
+
+-opaque gc() :: #gc{}.
+
+-export_type([gc/0]).
+
+-spec new(Name::atom(), MarkThreshold::pos_integer()) -> gc().
+new(Name, MarkThreshold)
+  when is_integer(MarkThreshold), MarkThreshold > 0 ->
+    #gc{name = Name,
+        mark_threshold = MarkThreshold}.
+
+ets_tab(#gc{tab = Tab}) -> Tab.
+
+-spec init_table(gc()) -> gc().
 %% @private
 %% @doc
 %% Initializes the GC table for a counter table.
 %% @end
-init_table(Name) when is_atom(Name) ->
-    ets:new(Name, [set, public]).
+init_table(GC = #gc{name = Name}) when is_atom(Name) ->
+    GC#gc{tab = ets:new(Name, [set, public])}.
 
-delete_table(Tid) ->
-    ets:delete(Tid).
+delete_table(#gc{tab = Tab}) ->
+    ets:delete(Tab).
 
--spec mark(ets:tab(), Key::term()) -> any().
+-spec mark(Key::term(), #gc{}) -> any().
 %% @doc
 %% Marks a key for future deletion. (Typically used when a counter has
 %% a 0 value during a reporting pass).
 %% @end
-mark(Tid, Key) ->
-    ectr:incr(Tid, Key, 1).
+mark(Key, #gc{tab = Tab}) ->
+    ectr:incr(Tab, Key, 1).
 
--spec unmark(ets:tab(), Key::term()) -> any().
+-spec unmark(Key::term(), #gc{}) -> any().
 %% @doc
 %% Removes any marks on a key. (Typically used when a counter has a
 %% non-0 value during a reporting pass)
 %% @end
-unmark(Tid, Key) ->
-    ets:delete(Tid, Key).
+unmark(Key, #gc{tab = Tab}) ->
+    ets:delete(Tab, Key).
 
--spec sweep(ets:tab(), pos_integer()) -> [ Key::term() ].
+-spec sweep(#gc{}) -> [ Key::term() ].
 %% @doc
 %% Returns all keys that have at least MarkThreshold marks on them,
 %% deleting their marks afterwards.
 %% @end
-sweep(Tid, MarkThreshold)
-  when is_integer(MarkThreshold), MarkThreshold > 0 ->
-    Keys = ets:select(Tid,
+sweep(#gc{tab = Tab, mark_threshold = MarkThreshold}) ->
+    Keys = ets:select(Tab,
                       ets:fun2ms(fun ({K, Ctr})
                                        when Ctr >= MarkThreshold ->
                                          K
                                  end)),
-    [ ets:delete(Tid, Key)
+    [ ets:delete(Tab, Key)
       || Key <- Keys ],
     Keys.

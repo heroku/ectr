@@ -34,11 +34,11 @@ end_per_suite(Config) ->
 
 %% Runs before the test case. Runs in the same process.
 init_per_testcase(CaseName, Config) ->
-    [{tab, ectr_gc:init_table(CaseName)} | Config].
+    [{gc, ectr_gc:init_table(ectr_gc:new(CaseName, 1))} | Config].
 
 %% Runs after the test case. Runs in the same process.
 end_per_testcase(_CaseName, Config) ->
-    ectr_gc:delete_table(?config(tab, Config)),
+    ectr_gc:delete_table(?config(gc, Config)),
     Config.
 
 %%%%%%%%%%%%%
@@ -46,23 +46,25 @@ end_per_testcase(_CaseName, Config) ->
 %%%%%%%%%%%%%
 
 mark_unmark(Config) ->
-    GCTab = ?config(tab, Config),
+    GC = ?config(gc, Config),
+    GCTab = ectr_gc:ets_tab(GC),
     Key = somekey,
     [] = ets:lookup(GCTab, Key),
-    ectr_gc:mark(GCTab, Key),
+    ectr_gc:mark(Key, GC),
     [{Key, 1}] = ets:lookup(GCTab, Key),
-    ectr_gc:mark(GCTab, Key),
+    ectr_gc:mark(Key, GC),
     [{Key, 2}] = ets:lookup(GCTab, Key),
-    ectr_gc:unmark(GCTab, Key),
+    ectr_gc:unmark(Key, GC),
     [] = ets:lookup(GCTab, Key),
     ok.
 
 mark_sweep(Config) ->
-    GCTab = ?config(tab, Config),
+    GC = ?config(gc, Config),
+    GCTab = ectr_gc:ets_tab(GC),
     Key = somekey,
     [] = ets:lookup(GCTab, Key),
-    ectr_gc:mark(GCTab, Key),
+    ectr_gc:mark(Key, GC),
     [{Key, 1}] = ets:lookup(GCTab, Key),
-    [Key] = ectr_gc:sweep(GCTab, 1),
+    [Key] = ectr_gc:sweep(GC),
     []= ets:lookup(GCTab, Key),
     ok.
