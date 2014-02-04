@@ -5,36 +5,41 @@
 %% @end
 -module(ectr_report).
 
--export([by_fold/4
-        ,by_snapshot/4
-        ]).
+-include("ectr_log.hrl").
 
-by_fold(TS, Tab, Fn, GCTid) ->
-    ets:foldl(fun (Stat, Acc) ->
-                      each_stat(Stat, TS, Tab, Fn, GCTid),
-                      Acc
-              end,
-              undefined,
-              Tab),
+-type report() :: ectr_fold_report:report() |
+                  ectr_each_report:report().
+
+-export_type([report/0]).
+
+-export([start_link/4]).
+
+%% proc_lib callback
+-export([report_init/4]).
+
+-spec start_link(report(), erlang:timestamp(), ets:tab(), ectr_gc:gc()) ->
+                        {ok, pid()} | {error, any()}.
+start_link(Report, TS, Tab, GC) ->
+    proc_lib:start_link(?MODULE, report_init, [Report, TS, Tab, GC]).
+
+report_init(Report, TS, Tab, GC) ->
+    proc_lib:init_ack(ok),
+    ?INFO("at=report_begin name=~p", [Tab]),
+    try
+        run_report(Report, TS, Tab, GC),
+        GCStart = os:timestamp(),
+        ectr_gc:sweep(GC),
+        ?INFO("at=report_end name=~p report_elapsed=~p gc_elapsed=~p",
+              [Tab, timer:now_diff(TS, GCStart),
+               timer:now_diff(GCStart, os:timestamp())])
+    catch
+        C:E ->
+            ?ERR("at=report_failed class=~p error=~p stack=~1000P",
+                 [C, E, erlang:get_stacktrace()])
+    end,
     ok.
 
-by_snapshot(TS, Tab, Fn, GCTid) ->
-    Stats = ets:tab2list(Tab),
-    [ each_stat(Stat, TS, Tab, Fn, GCTid)
-      || Stat <- Stats ],
-    ok.
-
-each_stat(Stat, TS, Tab, Fn, GCTid) ->
-    report_stat(Fn, TS, Stat),
-    clear(Tab, Stat, GCTid).
-
-report_stat(Fn, Ts, Stat) when is_function(Fn, 2) ->
-    Fn(Ts, Stat);
-report_stat({Mod, Fun}, Ts, Stat) ->
-    Mod:Fun(Ts, Stat).
-
-clear(_Tab, {Key, 0}, GCTid) ->
-    ectr_gc:mark(GCTid, Key);
-clear(Name, {Key, Ctr}, GCTid) ->
-    ectr_gc:unmark(GCTid, Key),
-    ets:update_counter(Name, Key, Ctr * -1).
+run_report({ectr_fold_report, _} = Fold, TS, Tab, GC) ->
+    ectr_fold_report:run(Fold, TS, Tab, GC);
+run_report({ectr_each_report, _} = Each, TS, Tab, GC) ->
+    ectr_each_report:run(Each, TS, Tab, GC).
