@@ -11,6 +11,7 @@
 -export([start_link/4
          ,incr/2
          ,incr/3
+         ,new_gc/2
         ]).
 
 -type counter_key() :: term().
@@ -36,6 +37,9 @@ start_link(Name,
                         Report,
                         IntervalMS,
                         GC).
+
+new_gc(Name, MarkThreshold) ->
+    ectr_gc:new(Name, MarkThreshold).
 
 -spec incr(Tab::ets:tab(),
            Key::counter_key()) -> any().
