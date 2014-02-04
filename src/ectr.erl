@@ -27,7 +27,6 @@
 %% API
 %%====================================================================
 
-
 -spec start_link(Name::atom(),
                  report_fn(),
                  IntervalMS::pos_integer()) ->
@@ -40,13 +39,26 @@ start_link(Name,
                         ReportFunction,
                         IntervalMS).
 
--spec incr(Name::atom(),
+-spec incr(Tid::ets:tid(),
            Key::counter_key()) -> any().
 incr(Name, Key) ->
-    ectr_srv:incr(Name, Key).
+    incr(Name, Key, 1).
 
--spec incr(Name::atom(),
+-spec incr(Tid::ets:tid(),
            Key::counter_key(),
            Increment::integer()) -> any().
-incr(Name, Key, Incr) ->
-    ectr_srv:incr(Name, Key, Incr).
+
+incr(Tid, Key, Incr)
+  when is_atom(Tid) orelse is_integer(Tid),
+       is_integer(Incr) ->
+    try ets:update_counter(Tid, Key, Incr)
+    catch error:badarg -> % Usually this is because the key doesn't exist.
+            try ets:insert_new(Tid, {Key, Incr})
+            catch error:badarg -> % We lost the key creation race, just update.
+                    %% Here, the catch allows us to avoid crashing if
+                    %% the table really doesn't exist. This means the
+                    %% table owning process can be restarted and
+                    %% callers will be able to make progress.
+                    catch ets:update_counter(Tid, Key, Incr)
+            end
+    end.

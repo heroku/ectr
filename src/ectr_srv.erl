@@ -25,11 +25,11 @@
 -behaviour(gen_server).
 
 %% gen_server callbacks
--export([start_link/3, init/1, handle_call/3, handle_cast/2,
+-export([init/1, handle_call/3, handle_cast/2,
          handle_info/2, terminate/2, code_change/3]).
 
 %% API functions
--export([incr/2, incr/3]).
+-export([start_link/3]).
 
 %% Admin functions
 -export([report/1]).
@@ -51,23 +51,6 @@ start_link(Name, ReportFn, Interval)
        is_integer(Interval), Interval > 0 ->
     gen_server:start_link({local, Name}, ?MODULE,
                           [Name, ReportFn, Interval], []).
-
-incr(Name, Key) ->
-    incr(Name, Key, 1).
-
-incr(Name, Key, Incr)
-  when is_atom(Name), is_integer(Incr) ->
-    try ets:update_counter(Name, Key, Incr)
-    catch error:badarg -> % Usually this is because the key doesn't exist.
-            try ets:insert_new(Name, {Key, Incr})
-            catch error:badarg -> % We lost the key creation race, just update.
-                    %% Here, the catch allows us to avoid crashing if
-                    %% the table really doesn't exist. This means the
-                    %% table owning process can be restarted and
-                    %% callers will be able to make progress.
-                    catch ets:update_counter(Name, Key, Incr)
-            end
-    end.
 
 report(Name) ->
     gen_server:call(Name, report, timer:seconds(30)).
