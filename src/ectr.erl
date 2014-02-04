@@ -8,7 +8,7 @@
 -module(ectr).
 
 %% API
--export([start_link/3
+-export([start_link/4
          ,incr/2
          ,incr/3
         ]).
@@ -28,16 +28,20 @@
 %%====================================================================
 
 -spec start_link(Name::atom(),
-                 report_fn(),
-                 IntervalMS::pos_integer()) ->
+                 ectr_report:report(),
+                 IntervalMS::pos_integer(),
+                 ectr_gc:gc()) ->
                         {ok, pid()} |
-                        {error, term()}.
+                        {error, _} |
+                        ignore.
 start_link(Name,
-           ReportFunction,
-           IntervalMS) ->
+           Report,
+           IntervalMS,
+           GC) ->
     ectr_srv:start_link(Name,
-                        ReportFunction,
-                        IntervalMS).
+                        Report,
+                        IntervalMS,
+                        GC).
 
 -spec incr(Tab::ets:tab(),
            Key::counter_key()) -> any().
