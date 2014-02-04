@@ -14,14 +14,8 @@
         ]).
 
 -type counter_key() :: term().
--type stat() :: {Key::term(), Counter::non_neg_integer()}.
--type report_fn() :: fun ((erlang:timestamp(), stat()) -> any()) |
-                     {Module::atom(), Fun::atom()}.
 
--export_types([stat/0
-              ,report_fn/0
-              ,counter_key/0
-              ]).
+-export_type([counter_key/0]).
 
 %%====================================================================
 %% API
