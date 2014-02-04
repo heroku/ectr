@@ -39,7 +39,8 @@
 -record(state, {name :: atom(),
                 report_fn :: ectr:report_fn(),
                 interval = timer:seconds(1) :: pos_integer(),
-                tref :: reference()
+                tref :: reference(),
+                gc_tid :: ets:tab()
                }).
 
 -define(REPORT_MSG, report).
@@ -60,10 +61,12 @@ report(Name) ->
 %%====================================================================
 
 init([Name, ReportFn, Interval]) ->
-    ets:new(Name, [public, named_table, set, {write_concurrency, true}]),
-    {ok, set_timer(#state{name = Name,
-                          report_fn = ReportFn,
-                          interval = Interval})}.
+    _Tid = init_table(Name),
+    State = #state{name = Name,
+                   report_fn = ReportFn,
+                   interval = Interval,
+                   gc_tid = ectr_gc:init_table(Name)},
+    {ok, set_timer(State)}.
 
 handle_call(report, _From, State) ->
     run_report(cancel_timer(State)),
@@ -77,8 +80,8 @@ handle_cast(_Msg, State) ->
 
 handle_info({timeout, TRef, ?REPORT_MSG},
             State = #state{tref = TRef}) ->
-    NewState = run_report(State#state{tref=undefined}),
-    {noreply, set_timer(NewState)};
+    run_report(State#state{tref=undefined}),
+    {noreply, set_timer(State)};
 
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -93,18 +96,28 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%--------------------------------------------------------------------
 
+init_table(Name) ->
+    ets:new(Name, [public, named_table, set,
+                   {write_concurrency, true},
+                   {read_concurrency, true}]).
+
 %% @todo Move reporting to child process.
-run_report(State = #state{name = Name}) ->
+run_report(#state{name = Name,
+                  report_fn = Fn,
+                  gc_tid = GCTid}) ->
     TS = os:timestamp(),
-    Stats = ets:tab2list(Name),
-    try report(TS, Stats, State) of
-        _ -> State
+    ?INFO("at=report_begin name=~p", [Name]),
+    try ectr_report:by_snapshot(TS, Name, Fn, GCTid) of
+        _ -> ok
     catch
         C:E ->
-            ?WARN("at=report class=~p error=~p stack=~1000P",
+            ?WARN("at=report_failed class=~p error=~p stack=~1000P",
                   [C, E, erlang:get_stacktrace()]),
-            State
-    end.
+            ok
+    end,
+    ?INFO("at=report_end name=~p elapsed=~p",
+          [Name, timer:now_diff(TS, os:timestamp())]),
+    ok.
 
 set_timer(State = #state{tref=undefined,
                          interval = MS}) ->
@@ -122,23 +135,3 @@ cancel_timer(State = #state{tref=TRef}) when is_reference(TRef) ->
          _Time -> ok
     end,
     State#state{tref = undefined}.
-
-report(TS, Stats, #state{name = Name,
-                         report_fn = Fn}) ->
-    [ begin
-          report_stat(Fn, TS, Stat),
-          clear(Name, Stat)
-      end
-      || Stat = {_Key, Count} <- Stats,
-         Count > 0], % Don't report 0 stats - no new sightings.
-    ok.
-
-report_stat(Fn, Ts, Stat) when is_function(Fn, 2) ->
-    Fn(Ts, Stat);
-report_stat({Mod, Fun}, Ts, Stat) ->
-    Mod:Fun(Ts, Stat).
-
-clear(_Name, {_Key, 0}) -> % Optimization to skip ops we don't need to do.
-    ok;
-clear(Name, {Key, Ctr}) ->
-    ets:update_counter(Name, Key, Ctr * -1).
