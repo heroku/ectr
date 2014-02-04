@@ -12,6 +12,8 @@
          ,incr/2
          ,incr/3
          ,new_gc/2
+         ,new_fold_report/1
+         ,new_each_report/1
         ]).
 
 -type counter_key() :: term().
@@ -40,6 +42,12 @@ start_link(Name,
 
 new_gc(Name, MarkThreshold) ->
     ectr_gc:new(Name, MarkThreshold).
+
+new_fold_report(Mod) ->
+    ectr_fold_report:new(Mod).
+
+new_each_report(Fn) ->
+    ectr_each_report:new(Fn).
 
 -spec incr(Tab::ets:tab(),
            Key::counter_key()) -> any().
