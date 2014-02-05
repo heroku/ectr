@@ -39,7 +39,7 @@ each_stat({Key, Count}, TS, {M,F}) ->
     M:F(TS, Key, Count).
 
 clear(_Tab, {Key, 0}, GC) ->
-    ectr_gc:mark(GC, Key);
+    ectr_gc:mark(Key, GC);
 clear(Tab, {Key, Ctr}, GC) ->
-    ectr_gc:unmark(GC, Key),
+    ectr_gc:unmark(Key, GC),
     ets:update_counter(Tab, Key, Ctr * -1).

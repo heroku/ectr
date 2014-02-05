@@ -44,7 +44,7 @@ fold_stat({Key, Count} = Stat, Tab, Mod, GC, Report) ->
     UpdatedReport.
 
 clear(_Tab, {Key, 0}, GC) ->
-    ectr_gc:mark(GC, Key);
+    ectr_gc:mark(Key, GC);
 clear(Name, {Key, Ctr}, GC) ->
-    ectr_gc:unmark(GC, Key),
+    ectr_gc:unmark(Key, GC),
     ets:update_counter(Name, Key, Ctr * -1).
