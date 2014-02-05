@@ -67,6 +67,7 @@ report(Name) ->
 %%====================================================================
 
 init([Name, Report, Interval, GC]) ->
+    process_flag(trap_exit, true),
     _Tid = init_table(Name),
     State = #state{name = Name,
                    report = Report,
