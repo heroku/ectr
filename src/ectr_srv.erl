@@ -81,10 +81,14 @@ handle_call(report, _From, State = #state{report_job = undefined}) ->
     NewState = run_report(cancel_timer(State)),
     {reply, ok, set_timer(NewState)};
 
-handle_call(_Msg, _From, State) ->
-    {reply, {error, invalid_call}, State}.
+handle_call(Msg, From, State) ->
+    ?INFO("at=unexpected_call msg=~p from=~p",
+          [Msg, From]),
+    {noreply, State}.
 
-handle_cast(_Msg, State) ->
+handle_cast(Msg, State) ->
+    ?INFO("at=unexpected_cast msg=~p",
+          [Msg]),
     {noreply, State}.
 
 %% Report timer fires with report still running:
@@ -125,7 +129,9 @@ handle_info({'EXIT', Pid, Reason},
     end,
     {noreply, State#state{report_job = undefined}};
 
-handle_info(_Info, State) ->
+handle_info(Info, State) ->
+    ?INFO("at=unexpected_info msg=~p",
+          [Info]),
     {noreply, State}.
 
 terminate(_Reason, _State) ->
