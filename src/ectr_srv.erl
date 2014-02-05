@@ -93,7 +93,7 @@ handle_info({timeout, TRef, ?REPORT_MSG},
                            report_job = #report{started_at=TS}}) ->
     ?WARN("at=report_timer reporting_skew error=report_still_running "
           "started_at=~p elapsed=~pus",
-          [unix_ts(TS), timer:now_diff(TS, os:timestamp())]),
+          [unix_ts(TS), timer:now_diff(os:timestamp(), TS)]),
     {noreply, set_timer(State#state{tref=undefined})};
 
 %% Report timer fired - time to kick off a report.
@@ -107,7 +107,7 @@ handle_info({'EXIT', Pid, Reason},
             State = #state{interval = IntervalMS,
                            report_job = #report{pid = Pid,
                                                 started_at = Start}}) ->
-    Elapsed = timer:now_diff(Start, os:timestamp()),
+    Elapsed = timer:now_diff(os:timestamp(), Start),
     IntervalUS = IntervalMS * 1000,
     case Reason of
         normal when Elapsed =< IntervalUS ->

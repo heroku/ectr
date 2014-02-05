@@ -23,15 +23,15 @@ start_link(Report, TS, Tab, GC) ->
     proc_lib:start_link(?MODULE, report_init, [Report, TS, Tab, GC]).
 
 report_init(Report, TS, Tab, GC) ->
-    proc_lib:init_ack(ok),
+    proc_lib:init_ack({ok, self()}),
     ?INFO("at=report_begin name=~p", [Tab]),
     try
         run_report(Report, TS, Tab, GC),
         GCStart = os:timestamp(),
         ectr_gc:sweep(GC),
         ?INFO("at=report_end name=~p report_elapsed=~p gc_elapsed=~p",
-              [Tab, timer:now_diff(TS, GCStart),
-               timer:now_diff(GCStart, os:timestamp())])
+              [Tab, timer:now_diff(GCStart, TS),
+               timer:now_diff(os:timestamp(), GCStart)])
     catch
         C:E ->
             ?ERR("at=report_failed class=~p error=~p stack=~1000P",
