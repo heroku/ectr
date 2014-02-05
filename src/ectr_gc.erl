@@ -2,6 +2,8 @@
 %% @author Geoff Cant <nem@erlang.geek.nz>
 %% @version {@vsn}, {@date} {@time}
 %% @doc ETS Counter Table Garbage Collector
+%% @todo Optimize the implementation when markthreshold=0 (just
+%% delete_object({Key, 0}) from main table.
 %% @end
 -module(ectr_gc).
 
