@@ -11,6 +11,7 @@
          ,mark/2
          ,unmark/2
          ,sweep/1
+         ,sweep/2
         ]).
 
 -export([ets_tab/1]).
@@ -74,3 +75,8 @@ sweep(#gc{tab = Tab, mark_threshold = MarkThreshold}) ->
     [ ets:delete(Tab, Key)
       || Key <- Keys ],
     Keys.
+
+-spec sweep(Tab::ets:tab(), gc()) -> any().
+sweep(MainTable, GC = #gc{}) ->
+    [ ets:delete_object(MainTable, {Key, 0})
+      || Key <- sweep(GC) ].
