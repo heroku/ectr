@@ -28,7 +28,7 @@ report_init(Report, TS, Tab, GC) ->
     try
         run_report(Report, TS, Tab, GC),
         GCStart = os:timestamp(),
-        ectr_gc:sweep(GC),
+        ectr_gc:sweep(Tab, GC),
         ?INFO("at=report_end name=~p report_elapsed=~p gc_elapsed=~p",
               [Tab, timer:now_diff(GCStart, TS),
                timer:now_diff(os:timestamp(), GCStart)])
