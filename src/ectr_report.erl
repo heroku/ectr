@@ -26,7 +26,6 @@ report_init(Report, TS, Tab, GC) ->
     proc_lib:init_ack({ok, self()}),
     try
         run_report(Report, TS, Tab, GC),
-        GCStart = os:timestamp(),
         ectr_gc:sweep(Tab, GC)
     catch
         C:E ->
