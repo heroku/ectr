@@ -24,17 +24,13 @@ start_link(Report, TS, Tab, GC) ->
 
 report_init(Report, TS, Tab, GC) ->
     proc_lib:init_ack({ok, self()}),
-    ?INFO("at=report_begin name=~p", [Tab]),
     try
         run_report(Report, TS, Tab, GC),
         GCStart = os:timestamp(),
-        ectr_gc:sweep(Tab, GC),
-        ?INFO("at=report_end name=~p report_elapsed=~p gc_elapsed=~p",
-              [Tab, timer:now_diff(GCStart, TS),
-               timer:now_diff(os:timestamp(), GCStart)])
+        ectr_gc:sweep(Tab, GC)
     catch
         C:E ->
-            ?ERR("at=report_failed class=~p error=~p stack=~1000P",
+            ?ERR("at=report_failed class=~p error=~p stack=~1000p",
                  [C, E, erlang:get_stacktrace()])
     end,
     ok.

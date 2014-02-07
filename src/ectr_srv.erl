@@ -116,11 +116,9 @@ handle_info({'EXIT', Pid, Reason},
     IntervalUS = IntervalMS * 1000,
     case Reason of
         normal when Elapsed =< IntervalUS ->
-            ?INFO("at=report_completion result=success "
-                  "elapsed=~p started_at=~p",
-                  [Elapsed, unix_ts(Start)]);
+            ok;
         normal ->
-            ?WARN("at=report_completion result=success "
+            ?INFO("at=report_completion result=success "
                   "elapsed=~p error=report_ran_too_slowly started_at=~p",
                   [Elapsed, unix_ts(Start)]);
         Else ->
