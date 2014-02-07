@@ -30,8 +30,7 @@ new(Mod) when is_atom(Mod) ->
                  any().
 run({?MODULE, Mod}, TS, Tab, GC) ->
     Final = ets:foldl(fun (Stat, Acc) ->
-                              fold_stat(Stat, Mod, Tab, GC, Acc),
-                              Acc
+                              fold_stat(Stat, Mod, Tab, GC, Acc)
                       end,
                       Mod:report_init(TS),
                       Tab),
