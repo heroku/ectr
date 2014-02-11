@@ -8,6 +8,7 @@
      ,stdlib
     ]}
   ,{env,
-    [
+    [{skew_tolerance, 5} % integer number of reporting intervals to
+                         % allow as skew
     ]}
  ]}.

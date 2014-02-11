@@ -124,7 +124,7 @@ handle_info({'EXIT', Pid, Reason},
                            report_job = #report{pid = Pid,
                                                 started_at = Start}}) ->
     Elapsed = timer:now_diff(os:timestamp(), Start),
-    IntervalUS = IntervalMS * 1000,
+    IntervalUS = skew_tolerance() * IntervalMS * 1000,
     case Reason of
         normal when Elapsed =< IntervalUS ->
             ok;
@@ -193,3 +193,11 @@ cancel_timer(State = #state{tref=TRef}) when is_reference(TRef) ->
 
 unix_ts({Mega, S, _Micros}) ->
     Mega * 1000000 + S.
+
+skew_tolerance() ->
+    case application:get_env(ectr, skew_tolerance) of
+        {ok, Value} when is_integer(Value) ->
+            Value;
+        _ ->
+            5
+    end.
