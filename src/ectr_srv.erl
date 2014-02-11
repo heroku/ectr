@@ -32,7 +32,9 @@
 -export([start_link/4]).
 
 %% Admin functions
--export([report/1]).
+-export([report/1
+        ,alter_interval/2
+        ]).
 
 -include("ectr_log.hrl").
 
@@ -62,6 +64,10 @@ start_link(Name, Report, Interval, GC)
 report(Name) ->
     gen_server:call(Name, report, timer:seconds(30)).
 
+alter_interval(Name, Interval)
+    when is_integer(Interval), Interval > 0 ->
+    gen_server:call(Name, {alter_interval, Interval}).
+
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
@@ -81,6 +87,11 @@ handle_call(report, _From, State = #state{report_job = R = #report{}}) ->
 handle_call(report, _From, State = #state{report_job = undefined}) ->
     NewState = run_report(cancel_timer(State)),
     {reply, ok, set_timer(NewState)};
+
+handle_call({alter_interval, NewInterval}, _From,
+            State) when is_integer(NewInterval),
+                        NewInterval > 0 ->
+    {reply, ok, State#state{interval = NewInterval}};
 
 handle_call(Msg, From, State) ->
     ?INFO("at=unexpected_call msg=~p from=~p",
