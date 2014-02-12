@@ -106,10 +106,7 @@ handle_cast(Msg, State) ->
 %% Report timer fires with report still running:
 handle_info({timeout, TRef, ?REPORT_MSG},
             State = #state{tref = TRef,
-                           report_job = #report{started_at=TS}}) ->
-    ?WARN("at=report_timer reporting_skew error=report_still_running "
-          "started_at=~p elapsed=~pus",
-          [unix_ts(TS), timer:now_diff(os:timestamp(), TS)]),
+                           report_job = #report{}}) ->
     {noreply, set_timer(State#state{tref=undefined})};
 
 %% Report timer fired - time to kick off a report.
