@@ -59,7 +59,7 @@ incr(Name, Key) ->
            Increment::integer()) -> any().
 
 incr(Tab, Key, Incr)
-  when is_atom(Tab) orelse is_integer(Tab),
+  when is_atom(Tab) orelse is_integer(Tab) orelse is_reference(Tab),
        is_integer(Incr) ->
     try ets:update_counter(Tab, Key, Incr)
     catch error:badarg -> % Usually this is because the key doesn't exist.
