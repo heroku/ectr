@@ -44,7 +44,7 @@
 -record(state, {name :: atom(),
                 report :: ectr_report:report(),
                 interval = timer:seconds(1) :: pos_integer(),
-                tref :: reference(),
+                tref :: undefined | reference(),
                 gc :: ectr_gc:gc(),
                 report_job :: #report{} | 'undefined'
                }).
